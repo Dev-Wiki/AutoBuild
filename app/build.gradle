@@ -1,26 +1,98 @@
 apply plugin: 'com.android.application'
 
-android {
-    compileSdkVersion 23
-    buildToolsVersion "23.0.2"
+//上面这段代码是告诉Gradle要加载一个com.android.application插件，在AndroidStudio下普通的module均做这样的声明
+//如果是library module的，则插件名变成com.android.library,参见AutoBuild/library/build.gradle
 
+
+ android {
+     compileSdkVersion 23    //编译SDK版本号
+     buildToolsVersion "23.0.2"  //buildTools版本号
+
+     // java版本
+     compileOptions {
+         sourceCompatibility JavaVersion.VERSION_1_7
+         targetCompatibility JavaVersion.VERSION_1_7
+     }
+
+     def versionPropsFile = file('version.properties')
+
+     if (versionPropsFile.canRead()) {
+         def Properties versionProps = new Properties()
+
+         versionProps.load(new FileInputStream(versionPropsFile))
+
+         int code = versionProps['VERSION_CODE'].toInteger() + 1
+
+         versionProps['VERSION_CODE']=code.toString()
+         versionProps.store(versionPropsFile.newWriter(), null)
+
+         defaultConfig {
+             versionCode code
+             versionName "1.0"
+             minSdkVersion 14
+             targetSdkVersion 23
+         }
+     }
+     else {
+         throw new GradleException("Could not read version.properties!")
+     }
+
+     //默认配置
     defaultConfig {
-        applicationId "net.devwiki.autobuild"
-        minSdkVersion 14
-        targetSdkVersion 23
-        versionCode 1
-        versionName "1.0"
+        applicationId "net.devwiki.autobuild"   //当前model的包名
+        minSdkVersion 14    //兼容的最低版本号
+        targetSdkVersion 23 //目标测试过的版本号
+        versionCode 1   //代码版本
+        versionName "1.0"   //版本名称
     }
+
+     //构建类型
     buildTypes {
+        //release类型
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            minifyEnabled false //是否混淆
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'  //混淆规则
         }
+
+        //debug类型
+        debug {
+            minifyEnabled false
+        }
+    }
+
+     //lint检查配置
+     lintOptions {
+         checkReleaseBuilds false   //
+         abortOnError false  //
+     }
+
+}
+
+task('increaseVersionCode') << {
+    def manifestFile = file("AndroidManifest.xml")
+    def pattern = Pattern.compile("versionCode=\"(\\d+)\"")
+    def manifestText = manifestFile.getText()
+    def matcher = pattern.matcher(manifestText)
+    matcher.find()
+    def versionCode = Integer.parseInt(matcher.group(1))
+    def manifestContent = matcher.replaceAll("versionCode=\"" + ++versionCode + "\"")
+    manifestFile.write(manifestContent)
+}
+
+tasks.whenTaskAdded { task ->
+    if (task.name == 'generateReleaseBuildConfig') {
+        task.dependsOn 'increaseVersionCode'
     }
 }
 
+//依赖配置
 dependencies {
+    //添加/libs文件夹下所有jar包依赖，本地依赖
     compile fileTree(dir: 'libs', include: ['*.jar'])
+    //单元测试依赖junit4.12
     testCompile 'junit:junit:4.12'
+    //依赖appcompat-v7 23.1.1，远程依赖
     compile 'com.android.support:appcompat-v7:23.1.1'
+    //依赖project:library
+    compile project(':library')
 }
